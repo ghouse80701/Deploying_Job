@@ -1,0 +1,64 @@
+---
+- name: Configure EC2 Instances
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install Node.js
+      shell: curl -sL https://rpm.nodesource.com/setup_14.x | sudo bash - && sudo yum install -y nodejs
+
+    - name: Install npm
+      yum:
+        name: npm
+        state: present
+
+    - name: Create /opt/frontend directory
+      file:
+        path: /opt/frontend
+        state: directory
+        mode: 0755
+      
+    - name: Create /opt/BackEnd directory
+      file:
+        path: /opt/BackEnd
+        state: directory
+        mode: 0755
+      
+    - name: Copy frontend archive file to /opt
+      copy:
+        src: "/var/lib/jenkins/workspace/Devops_Task/frontend/frontend-29.tar.gz"  # i have harcoded the value 29 from first job of last success build number
+        dest: "/opt/frontend/frontend-29.tar.gz"
+        mode: 0644
+
+    - name: Copy backend archive file to /opt
+      copy:
+        src: "/var/lib/jenkins/workspace/Devops_Task/BackEnd/BackEnd-29.tar.gz"    # i have harcoded the value 29 from first job of last success build number
+        dest: "/opt/BackEnd/BackEnd-29.tar.gz"
+        mode: 0644
+
+    - name: Unarchive frontend-29.tar.gz
+      unarchive:
+        src: "/opt/frontend/frontend-29.tar.gz"
+        dest: "/opt/frontend"
+        remote_src: yes
+
+    - name: Unarchive BackEnd-29.tar.gz
+      unarchive:
+        src: "/opt/BackEnd/BackEnd-29.tar.gz"
+        dest: "/opt/BackEnd"
+        remote_src: yes
+
+    - name: Start frontend application
+      command: npm start
+      args:
+        chdir: /opt/frontend
+      async: 60
+      poll: 0
+
+    - name: Start backend application
+      command: npm start
+      args:
+        chdir: /opt/BackEnd
+      async: 60
+      poll: 0
