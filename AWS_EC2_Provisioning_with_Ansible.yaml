@@ -1,0 +1,49 @@
+---
+- name: Provision EC2 Instances
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    instance_type: t2.micro
+    region: us-east-1
+    image: ami-0a699202e5027c10d  # Amazon Linux AMI
+    key_name: my_key
+    instance_tags:
+      - name: "Instance1"
+        tags:
+          Name: "Server1"
+      - name: "Instance2"
+        tags:
+          Name: "Server2"
+      - name: "Instance3"
+        tags:
+          Name: "Server3"
+    vpc_subnet_id: subnet-0f5ed3565b8d33531  # Specify your subnet ID here
+
+  tasks:
+    - name: Create EC2 Instances
+      ec2:
+        region: "{{ region }}"
+        key_name: "{{ key_name }}"
+        instance_type: "{{ instance_type }}"
+        image: "{{ image }}"
+        wait: yes
+        assign_public_ip: yes
+        count: 1
+        instance_tags: "{{ item.tags }}"
+        vpc_subnet_id: "{{ vpc_subnet_id }}"
+      loop: "{{ instance_tags }}"
+      register: ec2_info
+
+    - name: Add new instance to host group
+      add_host:
+        hostname: "{{ item.instances[0].public_ip }}"
+        groupname: launched
+      loop: "{{ ec2_info.results }}"
+
+    - name: Wait for SSH to come up
+      delegate_to: "{{ item.instances[0].public_dns_name }}"
+      wait_for_connection:
+        delay: 60
+        timeout: 320
+      loop: "{{ ec2_info.results }}"
