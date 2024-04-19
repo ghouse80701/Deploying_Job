@@ -1,17 +1,27 @@
 ---
-- name: Configure EC2 Instances
+- name: Deploying Application in Server
   hosts: all
   become: true
   gather_facts: true
 
   tasks:
     - name: Install Node.js
-      shell: curl -sL https://rpm.nodesource.com/setup_14.x | sudo bash - && sudo yum install -y nodejs
+      shell: curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - && sudo apt-get install -y nodejs
 
     - name: Install npm
       yum:
         name: npm
         state: present
+
+    - name: Install pm2 globally
+      npm:
+        name: pm2
+        global: yes
+
+    - name: Install serve globally
+      npm:
+        name: serve
+        global: yes
 
     - name: Create /opt/frontend directory
       file:
@@ -27,38 +37,50 @@
       
     - name: Copy frontend archive file to /opt
       copy:
-        src: "/var/lib/jenkins/workspace/Devops_Task/frontend/frontend-29.tar.gz"  # i have harcoded the value 29 from first job of last success build number
-        dest: "/opt/frontend/frontend-29.tar.gz"
+        src: "/var/lib/jenkins/workspace/CI_Job/frontend/frontend-4.tar.gz"  # i have harcoded the value 4 from first job of last success build number
+        dest: "/opt/frontend/frontend-4.tar.gz"
         mode: 0644
 
     - name: Copy backend archive file to /opt
       copy:
-        src: "/var/lib/jenkins/workspace/Devops_Task/BackEnd/BackEnd-29.tar.gz"    # i have harcoded the value 29 from first job of last success build number
-        dest: "/opt/BackEnd/BackEnd-29.tar.gz"
+        src: "/var/lib/jenkins/workspace/CI_Job/BackEnd/BackEnd-4.tar.gz"    # i have harcoded the value 4 from first job of last success build number
+        dest: "/opt/BackEnd/BackEnd-4.tar.gz"
         mode: 0644
 
-    - name: Unarchive frontend-29.tar.gz
+    - name: Unarchive frontend
       unarchive:
-        src: "/opt/frontend/frontend-29.tar.gz"
+        src: "/opt/frontend/frontend-4.tar.gz"
         dest: "/opt/frontend"
         remote_src: yes
 
-    - name: Unarchive BackEnd-29.tar.gz
+    - name: Unarchive BackEnd
       unarchive:
-        src: "/opt/BackEnd/BackEnd-29.tar.gz"
+        src: "/opt/BackEnd/BackEnd-4.tar.gz"
         dest: "/opt/BackEnd"
         remote_src: yes
 
-    - name: Start frontend application
-      command: npm start
-      args:
-        chdir: /opt/frontend
-      async: 60
-      poll: 0
+    - name: Delete existing backend application process if running
+      command: pm2 delete index
+      ignore_errors: yes
+    
+    - name: Delete existing frontend application process if running
+      command: pm2 delete static-page-server-3000
+      ignore_errors: yes
 
     - name: Start backend application
-      command: npm start
+      shell:
+        cmd: "npm install"
+        chdir: "/opt/BackEnd"
+      register: npm_install_result
+      ignore_errors: yes
+
+    - name: Start backend application with pm2
+      shell:
+        cmd: "pm2 start index.js -f"
+        chdir: "/opt/BackEnd"
+      when: npm_install_result is succeeded
+
+    - name: Start frontend application
+      command: pm2 serve build 3000
       args:
-        chdir: /opt/BackEnd
-      async: 60
-      poll: 0
+        chdir: /opt/frontend
